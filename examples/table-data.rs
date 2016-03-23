@@ -2,7 +2,6 @@ extern crate servo_vdom_client;
 
 use servo_vdom_client::client::{ServoVdomOptions,ServoVdomClient};
 use servo_vdom_client::patch::*;
-use std::f64::consts;
 use std::io::Result;
 use std::thread::sleep;
 use std::time::Duration;
@@ -11,7 +10,7 @@ fn main() {
 	let options = ServoVdomOptions {
 		servo_bin_path: "/Users/lorenvs/git/servo-vdom/servo/target/debug/servo".to_string(),
 	};
-	
+
 	let mut client = ServoVdomClient::new(options);
 	client.open().unwrap();
 
@@ -20,9 +19,9 @@ fn main() {
 
 	let mut num : u64 = 0;
 	loop {
-		sleep(Duration::new(0, 100000000));
+		sleep(Duration::new(0, 1000000));
 
-		num += 5;
+		num += 1;
 		let msg = try_write_update_patch(num).unwrap();
 		assert!(client.send(msg).is_ok());
 	}
@@ -39,28 +38,24 @@ fn try_write_init_patch() -> Result<Vec<u8>> {
 	try!(msg.write_el(100, ElementName::Style));
 	try!(msg.write_end_list());
 	try!(msg.write_text(101, r#"
-div.container {
-	width:500px;
-}
 
-div.bar {
-	height:1px;
-	background-color:red;
-}
 	"#));
 	try!(msg.write_end_list());
 
-	try!(msg.write_el(200, ElementName::Div));
-	try!(msg.write_attr(AttributeRef::Class("container")));
+	try!(msg.write_el(150, ElementName::Div));
+	try!(msg.write_end_list());
+	try!(msg.write_text(152, "Patches: "));
+	try!(msg.write_text(151, ""));
+	try!(msg.write_end_list());
+
+	try!(msg.write_el(200, ElementName::Table));
+	try!(msg.write_end_list());
+
+	try!(msg.write_el(201, ElementName::Tbody));
 	try!(msg.write_end_list());
 	try!(msg.write_end_list());
 
-	for i in 1..250 {
-		try!(msg.write_el(200 + i, ElementName::Div));
-		try!(msg.write_attr(AttributeRef::Class("bar")));
-		try!(msg.write_end_list());
-		try!(msg.write_end_list());
-	}
+	try!(msg.write_end_list());
 
 	// end nodes
 	try!(msg.write_end_list());
@@ -76,19 +71,28 @@ fn try_write_update_patch(num : u64) -> Result<Vec<u8>> {
 
 	try!(msg.write_msg_type(MessageType::Patch));
 
-	for i in 1..250 {
-		let as_f64 : f64 = ((num+i)%250) as f64;
-		let sin = ((as_f64 * consts::PI / 125.0).sin() * 250.0) as i32;
-		let left = if sin > 0 { 250 - sin } else { 250 };
-		let width = sin.abs();
-		let widthpx = width.to_string() + "px";
-		let leftpx = left.to_string() + "px";
+	try!(msg.write_patch_type(PatchType::Replace, 151));
+	try!(msg.write_text(151, &num.to_string()));
 
-		try!(msg.write_patch_type(PatchType::ModifyAttrs, 200 + i));
-		try!(msg.write_attr(AttributeRef::Style("margin-left", &leftpx)));
-		try!(msg.write_attr(AttributeRef::Style("width", &widthpx)));
+	if num > 25 {
+		try!(msg.write_patch_type(PatchType::Remove, 1000 + (1000 * (num-25))));
+	}
+
+	let base_id = 1000 + (1000 * num);
+
+	try!(msg.write_patch_type(PatchType::Append, 201));
+	try!(msg.write_el(base_id, ElementName::Tr));
+	try!(msg.write_end_list());
+
+	for x in 1..20 {
+		try!(msg.write_el(base_id + (2*x), ElementName::Td));
+		try!(msg.write_end_list());
+		try!(msg.write_text(base_id + (2*x)+1, &(num*x).to_string()));
 		try!(msg.write_end_list());
 	}
+
+	try!(msg.write_end_list());
+	try!(msg.write_end_list());
 
 	// end patches
 	try!(msg.write_end_list());
